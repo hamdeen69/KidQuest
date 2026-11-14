@@ -1375,7 +1375,7 @@ export default function App() {
                                 : 'bg-white/20 text-white hover:bg-white/30'
                             }`}
                           >
-                            {c.name} ({c.age} ขวบ)
+                            {c.name}
                           </button>
                         );
                       })}
@@ -1388,7 +1388,7 @@ export default function App() {
                       {lang.greeting(activeChild.name)}
                     </p>
                     <p className="text-xs font-medium text-white/85">
-                      {lang.heroBadge} · {AGE_GROUP_INFO[activeChild.ageGroup].shortLabel}
+                      {lang.heroBadge}
                     </p>
                   </div>
 

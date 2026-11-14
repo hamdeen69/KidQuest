@@ -1,7 +1,6 @@
 import React, { useMemo } from 'react';
 import { Trophy } from 'lucide-react';
 import { ChildProfile } from '../types';
-import { AGE_GROUP_INFO } from '../data/initialData';
 import { AvatarCanvas } from './AvatarCanvas';
 
 interface FamilyPodiumProps {
@@ -220,8 +219,8 @@ export const FamilyPodium: React.FC<FamilyPodiumProps> = ({
                   <div className="text-xs font-bold text-slate-900 truncate">
                     {child.name}
                   </div>
-                  <div className="text-[11px] text-slate-500">
-                    {AGE_GROUP_INFO[child.ageGroup].shortLabel}
+                  <div className="text-[11px] text-slate-500 tabular-nums">
+                    Lv.{child.level}
                   </div>
                 </div>
               </div>

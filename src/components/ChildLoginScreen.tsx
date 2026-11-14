@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { ArrowLeft, ShieldCheck, Sparkles } from 'lucide-react';
 import { ChildProfile } from '../types';
-import { AGE_GROUP_INFO } from '../data/initialData';
 import { AvatarCanvas } from './AvatarCanvas';
 import { PinKeypad } from './PinKeypad';
 
@@ -96,9 +95,8 @@ export const ChildLoginScreen: React.FC<ChildLoginScreenProps> = ({
                   <div className="text-base font-extrabold text-slate-900">
                     {selectedChild.name}
                   </div>
-                  <div className="text-xs text-slate-500">
-                    {AGE_GROUP_INFO[selectedChild.ageGroup].shortLabel} · Lv.
-                    {selectedChild.level}
+                  <div className="text-xs text-slate-500 tabular-nums">
+                    Lv.{selectedChild.level} · {selectedChild.coins} เหรียญ
                   </div>
                 </div>
               </div>
@@ -130,10 +128,6 @@ export const ChildLoginScreen: React.FC<ChildLoginScreenProps> = ({
                     <h2 className="text-base font-extrabold text-slate-900 mt-3">
                       {child.name}
                     </h2>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      อายุ {child.age} ปี ·{' '}
-                      {AGE_GROUP_INFO[child.ageGroup].shortLabel}
-                    </p>
                     <div className="mt-3 px-3.5 py-1.5 rounded-full bg-violet-100/80 text-violet-800 text-xs font-bold tabular-nums">
                       Lv.{child.level} · {child.coins} เหรียญ
                     </div>
