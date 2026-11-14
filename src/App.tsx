@@ -23,7 +23,6 @@ import {
   X,
 } from 'lucide-react';
 import Swal from 'sweetalert2';
-import { User } from 'firebase/auth';
 import {
   AgeGroup,
   AppSettings,
@@ -50,12 +49,8 @@ import {
   QUALITY_TIERS,
 } from './data/initialData';
 import {
-  getAccessToken,
-  googleSignIn,
-  initAuth,
-  logout as googleLogout,
-} from './services/googleAuth';
-import {
+  fetchGoogleServerStatus,
+  GoogleServerStatus,
   loadAllFromGoogleSheets,
   syncAllToGoogleSheets,
 } from './services/googleSheets';
@@ -232,9 +227,9 @@ export default function App() {
     quoteNumber: 1,
   });
 
-  // Google Workspace Auth, Sheets Sync & Drive Upload
-  const [googleUser, setGoogleUser] = useState<User | null>(null);
-  const [needsAuth, setNeedsAuth] = useState(true);
+  // Zero-Login Google Workspace Server Status, Sheets Sync & Drive Upload
+  const [googleServerStatus, setGoogleServerStatus] =
+    useState<GoogleServerStatus | null>(null);
   const [isSyncingSheets, setIsSyncingSheets] = useState(false);
   const [isUploadingDrive, setIsUploadingDrive] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
@@ -279,25 +274,16 @@ export default function App() {
     settings,
   ]);
 
-  // Initialize Firebase Auth & check server Telegram status
+  // Check server Google Workspace & Telegram configuration status on mount
   useEffect(() => {
-    const unsub = initAuth(
-      (user) => {
-        setGoogleUser(user);
-        setNeedsAuth(false);
-      },
-      () => {
-        setGoogleUser(null);
-        setNeedsAuth(true);
-      }
-    );
+    fetchGoogleServerStatus()
+      .then((status) => setGoogleServerStatus(status))
+      .catch(() => setGoogleServerStatus(null));
 
     fetch('/api/telegram/status')
       .then((r) => r.json())
       .then((d) => setServerTelegramConfigured(Boolean(d?.envConfigured)))
       .catch(() => setServerTelegramConfigured(false));
-
-    return () => unsub();
   }, []);
 
   const activeChild = useMemo(
@@ -395,14 +381,14 @@ export default function App() {
     let driveUploadWarning = false;
 
     if (photoDataUrl && saveToDrive) {
-      const token = await getAccessToken();
-      if (token) {
+      if (googleServerStatus && !googleServerStatus.configured) {
+        driveUploadWarning = true;
+      } else {
         try {
           const uploaded = await uploadChorePhotoToDrive({
             dataUrl: photoDataUrl,
             fileBaseName: `KidQuest_${todayKey}_${activeChild.name}_${chore.title}`,
             folderId: settings.driveFolderId,
-            accessToken: token,
             description: `หลักฐานภารกิจ "${chore.title}" โดย ${activeChild.name} วันที่ ${todayKey}`,
           });
           driveFileId = uploaded.id;
@@ -410,9 +396,6 @@ export default function App() {
         } catch {
           driveUploadWarning = true;
         }
-      } else {
-        setNeedsAuth(true);
-        driveUploadWarning = true;
       }
     }
 
@@ -820,48 +803,10 @@ export default function App() {
     await toastSuccess('ลบโปรไฟล์เรียบร้อยแล้ว', `ลบข้อมูลของ ${child.name} แล้ว`);
   };
 
-  const handleGoogleLogin = async () => {
-    try {
-      const res = await googleSignIn();
-      if (res) {
-        setGoogleUser(res.user);
-        setNeedsAuth(false);
-        await toastSuccess(
-          'เชื่อมต่อ Google สำเร็จ!',
-          `เข้าสู่ระบบในชื่อ ${res.user.email || res.user.displayName}`
-        );
-      }
-    } catch (err) {
-      await toastError(
-        'ไม่สามารถเข้าสู่ระบบ Google ได้',
-        err instanceof Error ? err.message : 'กรุณาลองใหม่อีกครั้ง'
-      );
-    }
-  };
-
-  const handleGoogleLogout = async () => {
-    await googleLogout();
-    setGoogleUser(null);
-    setNeedsAuth(true);
-  };
-
   const handleLoadFromSheets = async () => {
-    const token = await getAccessToken();
-    if (!token) {
-      setNeedsAuth(true);
-      await toastEncouragement(
-        'กรุณาเข้าสู่ระบบ Google อีกครั้ง',
-        'สิทธิ์เข้าถึงชั่วคราวหมดอายุ กรุณากด Sign in with Google เพื่อซิงค์ข้อมูล'
-      );
-      return;
-    }
-
     setIsSyncingSheets(true);
     try {
-      const data = await loadAllFromGoogleSheets(
-        settings.spreadsheetId.trim(),
-        token
-      );
+      const data = await loadAllFromGoogleSheets(settings.spreadsheetId.trim());
       if (
         !data.children &&
         !data.chores &&
@@ -901,29 +846,15 @@ export default function App() {
 
   const handleConfirmSyncToSheets = async () => {
     setSheetsConfirmOpen(false);
-    const token = await getAccessToken();
-    if (!token) {
-      setNeedsAuth(true);
-      await toastEncouragement(
-        'กรุณาเข้าสู่ระบบ Google',
-        'กรุณากด Sign in with Google ก่อนบันทึกข้อมูลลงสเปรดชีต'
-      );
-      return;
-    }
-
     setIsSyncingSheets(true);
     try {
-      const res = await syncAllToGoogleSheets(
-        settings.spreadsheetId.trim(),
-        token,
-        {
-          children: childrenList,
-          chores,
-          submissions,
-          rewards,
-          redemptions,
-        }
-      );
+      const res = await syncAllToGoogleSheets(settings.spreadsheetId.trim(), {
+        children: childrenList,
+        chores,
+        submissions,
+        rewards,
+        redemptions,
+      });
       setLastSyncedAt(
         new Date().toLocaleTimeString('th-TH', {
           hour: '2-digit',
@@ -950,17 +881,8 @@ export default function App() {
   );
 
   const handleVerifyDriveFolder = async () => {
-    const token = await getAccessToken();
-    if (!token) {
-      setNeedsAuth(true);
-      await toastEncouragement(
-        'กรุณาเข้าสู่ระบบ Google',
-        'กรุณากด Sign in with Google ก่อนตรวจสอบโฟลเดอร์ Drive'
-      );
-      return;
-    }
     try {
-      const folder = await verifyDriveFolder(settings.driveFolderId, token);
+      const folder = await verifyDriveFolder(settings.driveFolderId);
       await toastSuccess(
         'เชื่อมต่อโฟลเดอร์ Google Drive สำเร็จ!',
         `พบโฟลเดอร์ "${folder.name}" (ID: ${folder.id})`
@@ -975,15 +897,6 @@ export default function App() {
 
   const handleUploadSubmissionToDrive = async (sub: ChoreSubmission) => {
     if (!sub.photoDataUrl) return;
-    const token = await getAccessToken();
-    if (!token) {
-      setNeedsAuth(true);
-      await toastEncouragement(
-        'กรุณาเข้าสู่ระบบ Google',
-        'กรุณากด Sign in with Google ในโหมดผู้ปกครองก่อนบันทึกรูปขึ้น Drive'
-      );
-      return;
-    }
 
     const confirmRes = await Swal.fire({
       icon: 'question',
@@ -1010,7 +923,6 @@ export default function App() {
         dataUrl: sub.photoDataUrl,
         fileBaseName: `KidQuest_${sub.dateKey}_${sub.childName}_${sub.choreTitle}`,
         folderId: settings.driveFolderId,
-        accessToken: token,
         description: `หลักฐานภารกิจ "${sub.choreTitle}" โดย ${sub.childName} วันที่ ${sub.dateKey}`,
       });
 
@@ -1049,15 +961,6 @@ export default function App() {
 
   const handleBatchUploadDrivePhotos = async () => {
     if (pendingDrivePhotos.length === 0) return;
-    const token = await getAccessToken();
-    if (!token) {
-      setNeedsAuth(true);
-      await toastEncouragement(
-        'กรุณาเข้าสู่ระบบ Google',
-        'กรุณากด Sign in with Google ก่อนอัปโหลดรูปขึ้น Drive'
-      );
-      return;
-    }
 
     const confirmRes = await Swal.fire({
       icon: 'question',
@@ -1093,7 +996,6 @@ export default function App() {
           dataUrl: sub.photoDataUrl,
           fileBaseName: `KidQuest_${sub.dateKey}_${sub.childName}_${sub.choreTitle}`,
           folderId: settings.driveFolderId,
-          accessToken: token,
           description: `หลักฐานภารกิจ "${sub.choreTitle}" โดย ${sub.childName} วันที่ ${sub.dateKey}`,
         });
         updatedMap.set(sub.id, {
@@ -2221,15 +2123,12 @@ export default function App() {
                   <ParentSettingsPanel
                     childrenList={childrenList}
                     settings={settings}
-                    googleUser={googleUser}
-                    needsAuth={needsAuth}
+                    googleServerStatus={googleServerStatus}
                     isSyncingSheets={isSyncingSheets}
                     lastSyncedAt={lastSyncedAt}
                     pendingDrivePhotoCount={pendingDrivePhotos.length}
                     isUploadingDrive={isUploadingDrive}
                     serverTelegramConfigured={serverTelegramConfigured}
-                    onGoogleLogin={handleGoogleLogin}
-                    onGoogleLogout={handleGoogleLogout}
                     onLoadFromSheets={handleLoadFromSheets}
                     onRequestSyncToSheets={() => setSheetsConfirmOpen(true)}
                     onVerifyDriveFolder={handleVerifyDriveFolder}
@@ -2291,9 +2190,7 @@ export default function App() {
         chore={submittingChore}
         child={activeChild}
         driveFolderId={settings.driveFolderId}
-        isGoogleConnected={!needsAuth && Boolean(googleUser)}
         defaultSaveToDrive={settings.autoUploadDrivePhotos}
-        onGoogleLogin={handleGoogleLogin}
         onClose={() => setSubmittingChore(null)}
         onSubmit={handleSubmitChore}
       />

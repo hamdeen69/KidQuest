@@ -7,12 +7,12 @@ import {
   CheckCircle2,
   Clock,
   Coins,
+  Copy,
   Database,
   ExternalLink,
   FolderOpen,
   Gift,
   Lock,
-  LogOut,
   Plus,
   RefreshCw,
   Send,
@@ -22,7 +22,10 @@ import {
   UserPlus,
   X,
 } from 'lucide-react';
-import { User } from 'firebase/auth';
+import {
+  APPS_SCRIPT_CODE_GS,
+  GoogleServerStatus,
+} from '../services/googleSheets';
 import {
   AgeGroup,
   AppSettings,
@@ -109,9 +112,7 @@ export const SubmitChoreModal: React.FC<{
   chore: ChoreItem | null;
   child: ChildProfile;
   driveFolderId: string;
-  isGoogleConnected: boolean;
   defaultSaveToDrive: boolean;
-  onGoogleLogin: () => void;
   onClose: () => void;
   onSubmit: (payload: {
     chore: ChoreItem;
@@ -124,9 +125,7 @@ export const SubmitChoreModal: React.FC<{
   chore,
   child,
   driveFolderId,
-  isGoogleConnected,
   defaultSaveToDrive,
-  onGoogleLogin,
   onClose,
   onSubmit,
 }) => {
@@ -174,7 +173,7 @@ export const SubmitChoreModal: React.FC<{
         photoDataUrl,
         note: note.trim(),
         onTime: isBeforeDeadline,
-        saveToDrive: Boolean(photoDataUrl && saveToDrive && isGoogleConnected),
+        saveToDrive: Boolean(photoDataUrl && saveToDrive),
       });
     } finally {
       setIsSubmitting(false);
@@ -245,40 +244,24 @@ export const SubmitChoreModal: React.FC<{
                 </button>
               </div>
 
-              {/* Google Drive Photo Save Status / Option */}
-              {isGoogleConnected ? (
-                <label className="flex items-start gap-2.5 rounded-2xl bg-emerald-50/80 border border-emerald-100 p-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={saveToDrive}
-                    onChange={(e) => setSaveToDrive(e.target.checked)}
-                    className="w-4 h-4 mt-0.5 rounded accent-emerald-600"
-                  />
-                  <div className="text-xs text-emerald-900 min-w-0">
-                    <div className="font-bold flex items-center gap-1">
-                      <FolderOpen className="w-3.5 h-3.5 shrink-0" />
-                      <span>บันทึกรูปภาพนี้ลง Google Drive อัตโนมัติ</span>
-                    </div>
-                    <p className="text-[11px] text-emerald-700 font-mono-num truncate mt-0.5">
-                      Folder ID: {driveFolderId}
-                    </p>
+              {/* Zero-Login Google Drive Auto Save Option */}
+              <label className="flex items-start gap-2.5 rounded-2xl bg-emerald-50/80 border border-emerald-100 p-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={saveToDrive}
+                  onChange={(e) => setSaveToDrive(e.target.checked)}
+                  className="w-4 h-4 mt-0.5 rounded accent-emerald-600"
+                />
+                <div className="text-xs text-emerald-900 min-w-0">
+                  <div className="font-bold flex items-center gap-1">
+                    <FolderOpen className="w-3.5 h-3.5 shrink-0" />
+                    <span>บันทึกรูปภาพนี้ลง Google Drive อัตโนมัติ (ไม่ต้องล็อกอิน Gmail)</span>
                   </div>
-                </label>
-              ) : (
-                <div className="rounded-2xl bg-sky-50/80 border border-sky-100 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                  <div className="text-[11px] text-sky-900">
-                    <p className="font-bold">
-                      เชื่อมต่อ Google เพื่อบันทึกรูปลง Drive ทันที
-                    </p>
-                    <p className="text-sky-700">
-                      หรือกดส่งงานได้เลย แล้วให้ผู้ปกครองกดอัปโหลดรูปลง Drive ภายหลัง
-                    </p>
-                  </div>
-                  <div className="shrink-0">
-                    <GoogleSignInButton onClick={onGoogleLogin} />
-                  </div>
+                  <p className="text-[11px] text-emerald-700 font-mono-num truncate mt-0.5">
+                    Folder ID: {driveFolderId}
+                  </p>
                 </div>
-              )}
+              </label>
             </div>
           ) : (
             <label className="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-violet-200 bg-violet-50/40 hover:bg-violet-50/80 p-6 cursor-pointer transition-colors">
@@ -1466,63 +1449,16 @@ export const SheetsConfirmModal: React.FC<{
   );
 };
 
-/* Official Google Sign-In Button per Workspace Integration Skill */
-export const GoogleSignInButton: React.FC<{
-  onClick: () => void;
-  disabled?: boolean;
-}> = ({ onClick, disabled }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    disabled={disabled}
-    className="gsi-material-button"
-  >
-    <div className="gsi-material-button-state" />
-    <div className="gsi-material-button-content-wrapper">
-      <div className="gsi-material-button-icon">
-        <svg
-          version="1.1"
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 48 48"
-          style={{ display: 'block' }}
-        >
-          <path
-            fill="#EA4335"
-            d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
-          />
-          <path
-            fill="#4285F4"
-            d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
-          />
-          <path
-            fill="#FBBC05"
-            d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
-          />
-          <path
-            fill="#34A853"
-            d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
-          />
-          <path fill="none" d="M0 0h48v48H0z" />
-        </svg>
-      </div>
-      <span className="gsi-material-button-contents">Sign in with Google</span>
-    </div>
-  </button>
-);
-
 /* 6. Parent Settings, Anti-Burnout, Screen Time, Google Sheets, Drive & Telegram Panel */
 export const ParentSettingsPanel: React.FC<{
   childrenList: ChildProfile[];
   settings: AppSettings;
-  googleUser: User | null;
-  needsAuth: boolean;
+  googleServerStatus: GoogleServerStatus | null;
   isSyncingSheets: boolean;
   lastSyncedAt: string | null;
   pendingDrivePhotoCount: number;
   isUploadingDrive: boolean;
   serverTelegramConfigured: boolean;
-  onGoogleLogin: () => void;
-  onGoogleLogout: () => void;
   onLoadFromSheets: () => void;
   onRequestSyncToSheets: () => void;
   onVerifyDriveFolder: () => Promise<void>;
@@ -1534,15 +1470,12 @@ export const ParentSettingsPanel: React.FC<{
 }> = ({
   childrenList,
   settings,
-  googleUser,
-  needsAuth,
+  googleServerStatus,
   isSyncingSheets,
   lastSyncedAt,
   pendingDrivePhotoCount,
   isUploadingDrive,
   serverTelegramConfigured,
-  onGoogleLogin,
-  onGoogleLogout,
   onLoadFromSheets,
   onRequestSyncToSheets,
   onVerifyDriveFolder,
@@ -1554,6 +1487,18 @@ export const ParentSettingsPanel: React.FC<{
 }) => {
   const [testingTg, setTestingTg] = useState(false);
   const [verifyingDrive, setVerifyingDrive] = useState(false);
+  const [showAppsScriptGuide, setShowAppsScriptGuide] = useState(false);
+  const [copiedText, setCopiedText] = useState<string | null>(null);
+
+  const handleCopy = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedText(label);
+      setTimeout(() => setCopiedText(null), 2500);
+    } catch {
+      // Ignore clipboard failures
+    }
+  };
 
   const handleTest = async () => {
     setTestingTg(true);
@@ -1575,7 +1520,7 @@ export const ParentSettingsPanel: React.FC<{
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {/* Column 1: Google Sheets & Google Drive Integration */}
+      {/* Column 1: Zero-Login Google Sheets & Google Drive Integration */}
       <div className="glass-card rounded-3xl p-5 sm:p-6 space-y-4">
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
@@ -1583,10 +1528,10 @@ export const ParentSettingsPanel: React.FC<{
           </div>
           <div>
             <h3 className="text-base font-bold text-slate-900">
-              เชื่อมต่อ Google Sheets & Google Drive
+              Google Sheets & Google Drive (ใช้งานได้ทันที)
             </h3>
             <p className="text-xs text-slate-500">
-              ซิงค์ข้อมูลลงสเปรดชีต และบันทึกรูปหลักฐานงานบ้านลงโฟลเดอร์ Drive
+              เชื่อมต่อตรงผ่านระบบเซิร์ฟเวอร์ ไม่ต้องเข้าสู่ระบบ Google / Gmail
             </p>
           </div>
         </div>
@@ -1636,95 +1581,155 @@ export const ParentSettingsPanel: React.FC<{
           </label>
         </div>
 
-        {needsAuth || !googleUser ? (
-          <div className="rounded-2xl bg-slate-50 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <p className="text-xs text-slate-600">
-              เข้าสู่ระบบด้วยบัญชี Google เพื่อบันทึกข้อมูลลง Sheets และอัปโหลดรูปเข้า Drive
-            </p>
-            <GoogleSignInButton onClick={onGoogleLogin} />
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <div className="rounded-2xl bg-emerald-50/70 border border-emerald-100 p-3.5 flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-xs font-bold text-emerald-900 truncate">
-                  เชื่อมต่อแล้ว: {googleUser.displayName || googleUser.email}
-                </p>
-                <p className="text-[11px] text-emerald-700">
-                  {lastSyncedAt
-                    ? `ซิงค์ล่าสุดเมื่อ ${lastSyncedAt}`
-                    : 'พร้อมบันทึกข้อมูลไปยัง Google Sheets และอัปโหลดรูปลง Google Drive'}
+        <div className="space-y-3">
+          {googleServerStatus?.configured ? (
+            <div className="rounded-2xl bg-emerald-50/75 border border-emerald-100 p-3.5 space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>
+                    พร้อมใช้งานทันทีโดยไม่ต้องล็อกอิน Gmail (
+                    {googleServerStatus.mode === 'service_account'
+                      ? 'Service Account'
+                      : 'Apps Script Web App'}
+                    )
+                  </span>
                 </p>
               </div>
+              {googleServerStatus.serviceAccountEmail && (
+                <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-emerald-800 bg-white/75 rounded-xl px-2.5 py-1.5">
+                  <span className="truncate font-mono-num">
+                    แชร์ชีต/โฟลเดอร์ให้: {googleServerStatus.serviceAccountEmail}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleCopy(
+                        googleServerStatus.serviceAccountEmail!,
+                        'email'
+                      )
+                    }
+                    className="font-bold text-emerald-700 hover:underline flex items-center gap-1 shrink-0"
+                  >
+                    <Copy className="w-3 h-3" />
+                    <span>{copiedText === 'email' ? 'คัดลอกแล้ว!' : 'คัดลอกอีเมล'}</span>
+                  </button>
+                </div>
+              )}
+              <p className="text-[11px] text-emerald-700">
+                {lastSyncedAt
+                  ? `ซิงค์ล่าสุดเมื่อ ${lastSyncedAt}`
+                  : 'ผู้ใช้ทุกคนในครอบครัวสามารถกดซิงค์ Sheets และอัปโหลดรูปเข้า Drive ได้เลย'}
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-2xl bg-amber-50/80 border border-amber-200/80 p-3.5 space-y-2">
+              <p className="text-xs font-bold text-amber-900">
+                ใช้งานได้ทันทีโดยไม่ต้องล็อกอิน Gmail (รอตั้งค่าสิทธิ์บนเซิร์ฟเวอร์ 1 ครั้ง)
+              </p>
+              <p className="text-[11px] text-amber-800 leading-relaxed">
+                เพื่อความปลอดภัย ผู้ใช้งานในแอปไม่ต้องเข้าสู่ระบบ Gmail — เจ้าของระบบเพียงเพิ่มค่า{' '}
+                <code className="font-bold">GOOGLE_SERVICE_ACCOUNT_JSON</code> หรือ{' '}
+                <code className="font-bold">GOOGLE_APPS_SCRIPT_URL</code> ในเมนู Secrets ของโปรเจกต์
+              </p>
               <button
                 type="button"
-                onClick={onGoogleLogout}
-                className="px-3 py-1.5 rounded-xl bg-white text-slate-600 hover:text-rose-600 text-xs font-semibold flex items-center gap-1 shadow-sm shrink-0"
+                onClick={() => setShowAppsScriptGuide((v) => !v)}
+                className="text-[11px] font-bold text-violet-700 hover:underline"
               >
-                <LogOut className="w-3.5 h-3.5" />
-                <span>ออก</span>
+                {showAppsScriptGuide
+                  ? 'ซ่อนโค้ด Apps Script (Code.gs)'
+                  : 'ดูวิธีเชื่อมต่อด้วย Google Apps Script (สำหรับบัญชี Gmail ส่วนตัว)'}
               </button>
+
+              {showAppsScriptGuide && (
+                <div className="rounded-xl bg-white border border-amber-200 p-3 space-y-2 text-[11px] text-slate-700">
+                  <ol className="list-decimal list-inside space-y-1">
+                    <li>
+                      เปิด <span className="font-bold">script.google.com</span> สร้างโปรเจกต์ใหม่แล้ววางโค้ดด้านล่าง
+                    </li>
+                    <li>
+                      กด <span className="font-bold">Deploy → New deployment → Web app</span> เลือก Execute as: <span className="font-bold">Me</span> และ Who has access: <span className="font-bold">Anyone</span>
+                    </li>
+                    <li>
+                      นำ URL ที่ลงท้ายด้วย <code className="font-bold">/exec</code> ไปใส่ใน Secret ชื่อ <code className="font-bold">GOOGLE_APPS_SCRIPT_URL</code>
+                    </li>
+                  </ol>
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(APPS_SCRIPT_CODE_GS, 'script')}
+                    className="w-full py-2 rounded-xl bg-violet-50 hover:bg-violet-100 text-violet-700 font-bold flex items-center justify-center gap-1.5"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>
+                      {copiedText === 'script'
+                        ? 'คัดลอกโค้ด Apps Script เรียบร้อย!'
+                        : 'คัดลอกโค้ด Apps Script (Code.gs)'}
+                    </span>
+                  </button>
+                </div>
+              )}
             </div>
+          )}
 
-            {isSyncingSheets || isUploadingDrive ? (
-              <LoadingSpinner
-                label={
-                  isUploadingDrive
-                    ? 'กำลังอัปโหลดรูปภาพไปยัง Google Drive...'
-                    : 'กำลังซิงค์ข้อมูลกับ Google Sheets...'
-                }
-              />
-            ) : (
-              <div className="space-y-2.5">
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={onLoadFromSheets}
-                    className="h-11 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 text-xs font-bold flex items-center justify-center gap-1.5"
-                  >
-                    <RefreshCw className="w-4 h-4 text-sky-500" />
-                    <span>ดึงข้อมูลจาก Sheets</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onRequestSyncToSheets}
-                    className="h-11 rounded-2xl bg-gradient-to-r from-sky-400 to-violet-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-md shadow-violet-500/20"
-                  >
-                    <Upload className="w-4 h-4" />
-                    <span>บันทึกลง Sheets</span>
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <button
-                    type="button"
-                    disabled={verifyingDrive}
-                    onClick={handleVerifyDrive}
-                    className="h-10 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center justify-center gap-1.5"
-                  >
-                    <FolderOpen className="w-4 h-4 text-emerald-600" />
-                    <span>
-                      {verifyingDrive ? 'กำลังตรวจสอบ...' : 'ตรวจสอบโฟลเดอร์ Drive'}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    disabled={pendingDrivePhotoCount === 0}
-                    onClick={onBatchUploadDrivePhotos}
-                    className="h-10 rounded-2xl bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 text-emerald-800 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
-                  >
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>
-                      {pendingDrivePhotoCount > 0
-                        ? `อัปโหลดรูปค้างขึ้น Drive (${pendingDrivePhotoCount})`
-                        : 'อัปโหลดรูปครบทุกภาพแล้ว'}
-                    </span>
-                  </button>
-                </div>
+          {isSyncingSheets || isUploadingDrive ? (
+            <LoadingSpinner
+              label={
+                isUploadingDrive
+                  ? 'กำลังอัปโหลดรูปภาพไปยัง Google Drive...'
+                  : 'กำลังซิงค์ข้อมูลกับ Google Sheets...'
+              }
+            />
+          ) : (
+            <div className="space-y-2.5">
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={onLoadFromSheets}
+                  className="h-11 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 text-xs font-bold flex items-center justify-center gap-1.5"
+                >
+                  <RefreshCw className="w-4 h-4 text-sky-500" />
+                  <span>ดึงข้อมูลจาก Sheets</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onRequestSyncToSheets}
+                  className="h-11 rounded-2xl bg-gradient-to-r from-sky-400 to-violet-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-md shadow-violet-500/20"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>บันทึกลง Sheets</span>
+                </button>
               </div>
-            )}
-          </div>
-        )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <button
+                  type="button"
+                  disabled={verifyingDrive}
+                  onClick={handleVerifyDrive}
+                  className="h-10 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center justify-center gap-1.5"
+                >
+                  <FolderOpen className="w-4 h-4 text-emerald-600" />
+                  <span>
+                    {verifyingDrive ? 'กำลังตรวจสอบ...' : 'ตรวจสอบโฟลเดอร์ Drive'}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  disabled={pendingDrivePhotoCount === 0}
+                  onClick={onBatchUploadDrivePhotos}
+                  className="h-10 rounded-2xl bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 text-emerald-800 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>
+                    {pendingDrivePhotoCount > 0
+                      ? `อัปโหลดรูปค้างขึ้น Drive (${pendingDrivePhotoCount})`
+                      : 'อัปโหลดรูปครบทุกภาพแล้ว'}
+                  </span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Column 2: Telegram Bot Notifications & Behavioral Safeguards */}

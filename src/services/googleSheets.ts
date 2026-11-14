@@ -12,9 +12,12 @@ import {
   SubmissionStatus,
 } from '../types';
 
-export interface SpreadsheetMeta {
-  title: string;
-  sheetTitles: string[];
+export interface GoogleServerStatus {
+  configured: boolean;
+  mode: 'service_account' | 'apps_script' | 'unconfigured';
+  serviceAccountEmail: string | null;
+  defaultSpreadsheetId: string;
+  defaultDriveFolderId: string;
 }
 
 const TAB_CHILDREN = 'KidQuest_Children';
@@ -31,90 +34,16 @@ export const REQUIRED_TABS = [
   TAB_REDEMPTIONS,
 ];
 
-async function sheetsFetch(
-  url: string,
-  accessToken: string,
-  init?: RequestInit
-): Promise<Response> {
-  const res = await fetch(url, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
-  });
-  return res;
-}
-
-export async function fetchSpreadsheetMeta(
-  spreadsheetId: string,
-  accessToken: string
-): Promise<SpreadsheetMeta> {
-  const res = await sheetsFetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(
-      spreadsheetId
-    )}?fields=properties.title,sheets.properties.title`,
-    accessToken
-  );
-
+export async function fetchGoogleServerStatus(): Promise<GoogleServerStatus> {
+  const res = await fetch('/api/google/status');
   if (!res.ok) {
-    const errBody = await res.json().catch(() => ({}));
-    const msg =
-      errBody?.error?.message ||
-      `ไม่สามารถเข้าถึง Google Sheet (${res.status}) กรุณาตรวจสอบสิทธิ์หรือ Spreadsheet ID`;
-    throw new Error(msg);
+    throw new Error('ไม่สามารถตรวจสอบสถานะการเชื่อมต่อ Google ได้');
   }
-
-  const data = (await res.json()) as {
-    properties?: { title?: string };
-    sheets?: { properties?: { title?: string } }[];
-  };
-
-  return {
-    title: data.properties?.title || 'Google Spreadsheet',
-    sheetTitles: (data.sheets || [])
-      .map((s) => s.properties?.title || '')
-      .filter(Boolean),
-  };
-}
-
-async function ensureTabsExist(
-  spreadsheetId: string,
-  accessToken: string,
-  existingTabs: string[]
-): Promise<string[]> {
-  const missing = REQUIRED_TABS.filter((tab) => !existingTabs.includes(tab));
-  if (missing.length === 0) return existingTabs;
-
-  const res = await sheetsFetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(
-      spreadsheetId
-    )}:batchUpdate`,
-    accessToken,
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        requests: missing.map((title) => ({
-          addSheet: { properties: { title } },
-        })),
-      }),
-    }
-  );
-
-  if (!res.ok) {
-    const errBody = await res.json().catch(() => ({}));
-    throw new Error(
-      errBody?.error?.message || 'ไม่สามารถสร้างแท็บข้อมูลใน Google Sheets ได้'
-    );
-  }
-
-  return [...existingTabs, ...missing];
+  return (await res.json()) as GoogleServerStatus;
 }
 
 export async function syncAllToGoogleSheets(
   spreadsheetId: string,
-  accessToken: string,
   payload: {
     children: ChildProfile[];
     chores: ChoreItem[];
@@ -123,9 +52,6 @@ export async function syncAllToGoogleSheets(
     redemptions: RewardRedemption[];
   }
 ): Promise<{ spreadsheetTitle: string; updatedTabs: string[] }> {
-  const meta = await fetchSpreadsheetMeta(spreadsheetId, accessToken);
-  await ensureTabsExist(spreadsheetId, accessToken, meta.sheetTitles);
-
   const childrenRows: (string | number)[][] = [
     [
       'ID',
@@ -293,51 +219,34 @@ export async function syncAllToGoogleSheets(
     { range: `${TAB_REDEMPTIONS}!A1`, values: redemptionsRows },
   ];
 
-  // Clear old ranges first so deleted rows do not remain stale
-  await sheetsFetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(
-      spreadsheetId
-    )}/values:batchClear`,
-    accessToken,
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        ranges: REQUIRED_TABS.map((t) => `${t}!A1:Z500`),
-      }),
-    }
-  );
+  const res = await fetch('/api/google/sheets/sync', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      spreadsheetId,
+      requiredTabs: REQUIRED_TABS,
+      tabData,
+    }),
+  });
 
-  const updateRes = await sheetsFetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(
-      spreadsheetId
-    )}/values:batchUpdate`,
-    accessToken,
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        valueInputOption: 'USER_ENTERED',
-        data: tabData,
-      }),
-    }
-  );
+  const data = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    error?: string;
+    spreadsheetTitle?: string;
+    updatedTabs?: string[];
+  };
 
-  if (!updateRes.ok) {
-    const errBody = await updateRes.json().catch(() => ({}));
-    throw new Error(
-      errBody?.error?.message || 'ไม่สามารถบันทึกข้อมูลลง Google Sheets ได้'
-    );
+  if (!res.ok || !data.ok) {
+    throw new Error(data.error || 'ไม่สามารถบันทึกข้อมูลลง Google Sheets ได้');
   }
 
   return {
-    spreadsheetTitle: meta.title,
-    updatedTabs: REQUIRED_TABS,
+    spreadsheetTitle: data.spreadsheetTitle || 'Google Spreadsheet',
+    updatedTabs: data.updatedTabs || REQUIRED_TABS,
   };
 }
 
-export async function loadAllFromGoogleSheets(
-  spreadsheetId: string,
-  accessToken: string
-): Promise<{
+export async function loadAllFromGoogleSheets(spreadsheetId: string): Promise<{
   spreadsheetTitle: string;
   availableTabs: string[];
   children?: ChildProfile[];
@@ -346,39 +255,26 @@ export async function loadAllFromGoogleSheets(
   rewards?: FamilyReward[];
   redemptions?: RewardRedemption[];
 }> {
-  const meta = await fetchSpreadsheetMeta(spreadsheetId, accessToken);
+  const res = await fetch('/api/google/sheets/load', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      spreadsheetId,
+      tabs: REQUIRED_TABS,
+    }),
+  });
 
-  const presentTabs = REQUIRED_TABS.filter((t) =>
-    meta.sheetTitles.includes(t)
-  );
-  if (presentTabs.length === 0) {
-    return {
-      spreadsheetTitle: meta.title,
-      availableTabs: meta.sheetTitles,
-    };
-  }
-
-  const rangesQuery = presentTabs
-    .map((t) => `ranges=${encodeURIComponent(`${t}!A1:Z500`)}`)
-    .join('&');
-
-  const res = await sheetsFetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(
-      spreadsheetId
-    )}/values:batchGet?${rangesQuery}`,
-    accessToken
-  );
-
-  if (!res.ok) {
-    const errBody = await res.json().catch(() => ({}));
-    throw new Error(
-      errBody?.error?.message || 'ไม่สามารถอ่านข้อมูลจาก Google Sheets ได้'
-    );
-  }
-
-  const data = (await res.json()) as {
+  const data = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    error?: string;
+    spreadsheetTitle?: string;
+    availableTabs?: string[];
     valueRanges?: { range?: string; values?: string[][] }[];
   };
+
+  if (!res.ok || !data.ok) {
+    throw new Error(data.error || 'ไม่สามารถอ่านข้อมูลจาก Google Sheets ได้');
+  }
 
   const result: {
     spreadsheetTitle: string;
@@ -389,8 +285,8 @@ export async function loadAllFromGoogleSheets(
     rewards?: FamilyReward[];
     redemptions?: RewardRedemption[];
   } = {
-    spreadsheetTitle: meta.title,
-    availableTabs: meta.sheetTitles,
+    spreadsheetTitle: data.spreadsheetTitle || 'Google Spreadsheet',
+    availableTabs: data.availableTabs || [],
   };
 
   for (const vr of data.valueRanges || []) {
@@ -412,7 +308,7 @@ export async function loadAllFromGoogleSheets(
           level: Number(r[6]) || 1,
           dailyCap: Number(r[7]) || 4,
           streakDays: Number(r[8]) || 0,
-          pin: (r[14] && /^\d{4}$/.test(r[14])) ? r[14] : '1111',
+          pin: r[14] && /^\d{4}$/.test(r[14]) ? r[14] : '1111',
           avatar: {
             character: (r[9] as AvatarCharacter) || 'fox',
             accessory: (r[10] as AvatarAccessory) || 'none',
@@ -500,3 +396,88 @@ export async function loadAllFromGoogleSheets(
 
   return result;
 }
+
+export const APPS_SCRIPT_CODE_GS = `function doPost(e) {
+  try {
+    var payload = JSON.parse(e.postData.contents || '{}');
+    var action = payload.action;
+
+    if (action === 'load') {
+      var ss = SpreadsheetApp.openById(payload.spreadsheetId);
+      var availableTabs = ss.getSheets().map(function(s) { return s.getName(); });
+      var tabs = payload.tabs || [];
+      var valueRanges = [];
+      tabs.forEach(function(tabName) {
+        var sheet = ss.getSheetByName(tabName);
+        if (sheet) {
+          var values = sheet.getDataRange().getValues();
+          valueRanges.push({
+            range: tabName + '!A1:Z' + Math.max(values.length, 1),
+            values: values.map(function(row) {
+              return row.map(function(cell) { return cell === null || cell === undefined ? '' : String(cell); });
+            })
+          });
+        }
+      });
+      return jsonOut({
+        ok: true,
+        spreadsheetTitle: ss.getName(),
+        availableTabs: availableTabs,
+        valueRanges: valueRanges
+      });
+    }
+
+    if (action === 'sync') {
+      var ssSync = SpreadsheetApp.openById(payload.spreadsheetId);
+      var requiredTabs = payload.requiredTabs || [];
+      requiredTabs.forEach(function(tabName) {
+        if (!ssSync.getSheetByName(tabName)) {
+          ssSync.insertSheet(tabName);
+        }
+      });
+      (payload.tabData || []).forEach(function(item) {
+        var tabName = String(item.range || '').split('!')[0];
+        var sheet = ssSync.getSheetByName(tabName);
+        if (!sheet) return;
+        sheet.clearContents();
+        var values = item.values || [];
+        if (values.length > 0 && values[0].length > 0) {
+          sheet.getRange(1, 1, values.length, values[0].length).setValues(values);
+        }
+      });
+      return jsonOut({
+        ok: true,
+        spreadsheetTitle: ssSync.getName(),
+        updatedTabs: requiredTabs
+      });
+    }
+
+    if (action === 'verifyDrive') {
+      var folder = DriveApp.getFolderById(payload.folderId);
+      return jsonOut({ ok: true, id: folder.getId(), name: folder.getName() });
+    }
+
+    if (action === 'uploadDrive') {
+      var targetFolder = DriveApp.getFolderById(payload.folderId);
+      var bytes = Utilities.base64Decode(payload.base64Data);
+      var blob = Utilities.newBlob(bytes, payload.mimeType || 'image/jpeg', payload.fileName);
+      var file = targetFolder.createFile(blob);
+      if (payload.description) file.setDescription(payload.description);
+      return jsonOut({
+        ok: true,
+        id: file.getId(),
+        name: file.getName(),
+        webViewLink: file.getUrl()
+      });
+    }
+
+    return jsonOut({ ok: false, error: 'Unknown action: ' + action });
+  } catch (err) {
+    return jsonOut({ ok: false, error: String(err && err.message ? err.message : err) });
+  }
+}
+
+function jsonOut(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}`;
