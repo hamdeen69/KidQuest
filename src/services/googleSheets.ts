@@ -34,12 +34,79 @@ export const REQUIRED_TABS = [
   TAB_REDEMPTIONS,
 ];
 
-export async function fetchGoogleServerStatus(): Promise<GoogleServerStatus> {
-  const res = await fetch('/api/google/status');
-  if (!res.ok) {
-    throw new Error('ไม่สามารถตรวจสอบสถานะการเชื่อมต่อ Google ได้');
+function getFallbackAppsScriptUrl(): string {
+  const url = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL;
+  return typeof url === 'string' ? url.trim().replace(/^["']|["']$/g, '') : '';
+}
+
+function isJsonResponse(res: Response): boolean {
+  const ct = res.headers.get('content-type') || '';
+  return ct.toLowerCase().includes('application/json');
+}
+
+export async function callAppsScriptDirect<T = Record<string, unknown>>(
+  scriptUrl: string,
+  payload: Record<string, unknown>
+): Promise<T> {
+  const res = await fetch(scriptUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload),
+    redirect: 'follow',
+  });
+  const text = await res.text();
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    throw new Error(
+      `ไม่สามารถอ่านคำตอบจาก Google Apps Script ได้ (HTTP ${res.status})`
+    );
   }
-  return (await res.json()) as GoogleServerStatus;
+  if (!parsed.ok) {
+    throw new Error(
+      String(parsed.error || 'การเชื่อมต่อ Google Apps Script ไม่สำเร็จ')
+    );
+  }
+  return parsed as T;
+}
+
+export async function fetchGoogleServerStatus(): Promise<GoogleServerStatus> {
+  const fallbackUrl = getFallbackAppsScriptUrl();
+  try {
+    const res = await fetch('/api/google/status');
+    if (res.ok && isJsonResponse(res)) {
+      const data = (await res.json()) as GoogleServerStatus;
+      if (!data.configured && fallbackUrl) {
+        return {
+          ...data,
+          configured: true,
+          mode: 'apps_script',
+        };
+      }
+      return data;
+    }
+  } catch {
+    // Ignore network/proxy error and check fallback
+  }
+
+  if (fallbackUrl) {
+    return {
+      configured: true,
+      mode: 'apps_script',
+      serviceAccountEmail: null,
+      defaultSpreadsheetId: '10tp-V420fQeYGxfnYoNCRURqF9OPxRkG2tQsm2vht7w',
+      defaultDriveFolderId: '11ntO9X4OFZXRSa33QjGQfSBf2eS0gzTF',
+    };
+  }
+
+  return {
+    configured: false,
+    mode: 'unconfigured',
+    serviceAccountEmail: null,
+    defaultSpreadsheetId: '10tp-V420fQeYGxfnYoNCRURqF9OPxRkG2tQsm2vht7w',
+    defaultDriveFolderId: '11ntO9X4OFZXRSa33QjGQfSBf2eS0gzTF',
+  };
 }
 
 export async function syncAllToGoogleSheets(
@@ -219,31 +286,74 @@ export async function syncAllToGoogleSheets(
     { range: `${TAB_REDEMPTIONS}!A1`, values: redemptionsRows },
   ];
 
-  const res = await fetch('/api/google/sheets/sync', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      spreadsheetId,
-      requiredTabs: REQUIRED_TABS,
-      tabData,
-    }),
-  });
+  const fallbackUrl = getFallbackAppsScriptUrl();
 
-  const data = (await res.json().catch(() => ({}))) as {
-    ok?: boolean;
-    error?: string;
-    spreadsheetTitle?: string;
-    updatedTabs?: string[];
-  };
+  try {
+    const res = await fetch('/api/google/sheets/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        spreadsheetId,
+        requiredTabs: REQUIRED_TABS,
+        tabData,
+      }),
+    });
 
-  if (!res.ok || !data.ok) {
-    throw new Error(data.error || 'ไม่สามารถบันทึกข้อมูลลง Google Sheets ได้');
+    if (isJsonResponse(res)) {
+      const data = (await res.json()) as {
+        ok?: boolean;
+        unconfigured?: boolean;
+        error?: string;
+        spreadsheetTitle?: string;
+        updatedTabs?: string[];
+      };
+
+      if (res.ok && data.ok) {
+        return {
+          spreadsheetTitle: data.spreadsheetTitle || 'Google Spreadsheet',
+          updatedTabs: data.updatedTabs || REQUIRED_TABS,
+        };
+      }
+
+      if (!data.unconfigured || !fallbackUrl) {
+        throw new Error(data.error || 'ไม่สามารถบันทึกข้อมูลลง Google Sheets ได้');
+      }
+    } else if (!fallbackUrl) {
+      throw new Error(
+        `ไม่พบ API หลังบ้าน (/api/google/sheets/sync สถานะ ${res.status}) กรุณาตั้งค่า GOOGLE_APPS_SCRIPT_URL`
+      );
+    }
+  } catch (err) {
+    if (!fallbackUrl) {
+      throw err instanceof Error
+        ? err
+        : new Error('ไม่สามารถบันทึกข้อมูลลง Google Sheets ได้');
+    }
   }
 
+  const direct = await callAppsScriptDirect<{
+    spreadsheetTitle?: string;
+    updatedTabs?: string[];
+  }>(fallbackUrl, {
+    action: 'sync',
+    spreadsheetId,
+    requiredTabs: REQUIRED_TABS,
+    tabData,
+  });
+
   return {
-    spreadsheetTitle: data.spreadsheetTitle || 'Google Spreadsheet',
-    updatedTabs: data.updatedTabs || REQUIRED_TABS,
+    spreadsheetTitle: direct.spreadsheetTitle || 'Google Spreadsheet',
+    updatedTabs: direct.updatedTabs || REQUIRED_TABS,
   };
+}
+
+interface SheetsLoadPayload {
+  ok?: boolean;
+  unconfigured?: boolean;
+  error?: string;
+  spreadsheetTitle?: string;
+  availableTabs?: string[];
+  valueRanges?: { range?: string; values?: string[][] }[];
 }
 
 export async function loadAllFromGoogleSheets(spreadsheetId: string): Promise<{
@@ -255,25 +365,45 @@ export async function loadAllFromGoogleSheets(spreadsheetId: string): Promise<{
   rewards?: FamilyReward[];
   redemptions?: RewardRedemption[];
 }> {
-  const res = await fetch('/api/google/sheets/load', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+  const fallbackUrl = getFallbackAppsScriptUrl();
+  let data: SheetsLoadPayload | null = null;
+
+  try {
+    const res = await fetch('/api/google/sheets/load', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        spreadsheetId,
+        tabs: REQUIRED_TABS,
+      }),
+    });
+
+    if (isJsonResponse(res)) {
+      const json = (await res.json()) as SheetsLoadPayload;
+      if (res.ok && json.ok) {
+        data = json;
+      } else if (!json.unconfigured || !fallbackUrl) {
+        throw new Error(json.error || 'ไม่สามารถอ่านข้อมูลจาก Google Sheets ได้');
+      }
+    } else if (!fallbackUrl) {
+      throw new Error(
+        `ไม่พบ API หลังบ้าน (/api/google/sheets/load สถานะ ${res.status}) กรุณาตั้งค่า GOOGLE_APPS_SCRIPT_URL`
+      );
+    }
+  } catch (err) {
+    if (!fallbackUrl) {
+      throw err instanceof Error
+        ? err
+        : new Error('ไม่สามารถอ่านข้อมูลจาก Google Sheets ได้');
+    }
+  }
+
+  if (!data) {
+    data = await callAppsScriptDirect<SheetsLoadPayload>(fallbackUrl, {
+      action: 'load',
       spreadsheetId,
       tabs: REQUIRED_TABS,
-    }),
-  });
-
-  const data = (await res.json().catch(() => ({}))) as {
-    ok?: boolean;
-    error?: string;
-    spreadsheetTitle?: string;
-    availableTabs?: string[];
-    valueRanges?: { range?: string; values?: string[][] }[];
-  };
-
-  if (!res.ok || !data.ok) {
-    throw new Error(data.error || 'ไม่สามารถอ่านข้อมูลจาก Google Sheets ได้');
+    });
   }
 
   const result: {
