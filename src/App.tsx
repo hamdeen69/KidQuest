@@ -1173,11 +1173,21 @@ export default function App() {
       {/* Desktop / Tablet Sidebar Navigation */}
       <aside className="hidden lg:flex lg:flex-col lg:w-68 lg:shrink-0 bg-white/85 backdrop-blur-xl border-r border-indigo-100/70 p-5 justify-between sticky top-0 h-screen">
         <div className="space-y-6">
-          {/* Brand Wordmark */}
-          <div className="flex items-center justify-between px-2">
-            <span className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-sky-500 via-indigo-500 to-violet-600 bg-clip-text text-transparent">
-              KidQuest Family
-            </span>
+          {/* Brand Logo & Wordmark */}
+          <div className="flex items-center gap-3 px-1">
+            <img
+              src="/assets/aistudio/__________________________3f410f16.png"
+              alt="KidQuest Family Logo"
+              className="w-10 h-10 rounded-xl shadow-sm object-cover shrink-0"
+            />
+            <div className="min-w-0">
+              <span className="block text-lg font-extrabold tracking-tight bg-gradient-to-r from-sky-500 via-indigo-500 to-violet-600 bg-clip-text text-transparent leading-tight">
+                KidQuest Family
+              </span>
+              <span className="block text-[11px] font-medium text-slate-400 truncate">
+                ภารกิจงานบ้านแสนสนุก
+              </span>
+            </div>
           </div>
 
           {/* Active Child Card in Sidebar */}
@@ -1277,6 +1287,23 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-1 min-w-0 pb-24 lg:pb-8">
         <div className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 pt-3 sm:pt-6">
+          {/* Compact Mobile Brand Bar */}
+          <div className="lg:hidden flex items-center justify-between gap-2 mb-3 px-1">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <img
+                src="/assets/aistudio/__________________________3f410f16.png"
+                alt="KidQuest Family Logo"
+                className="w-9 h-9 rounded-xl shadow-sm object-cover shrink-0"
+              />
+              <span className="text-base font-extrabold tracking-tight bg-gradient-to-r from-sky-500 via-indigo-500 to-violet-600 bg-clip-text text-transparent truncate">
+                KidQuest Family
+              </span>
+            </div>
+            <span className="text-[11px] font-bold text-violet-700 bg-white/80 px-2.5 py-1 rounded-full shadow-sm whitespace-nowrap">
+              {activeChild.name} · Lv.{activeChild.level}
+            </span>
+          </div>
+
           {/* TAB 1: HOME VIEW (Matches Screenshot 1) */}
           {activeTab === 'home' && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">

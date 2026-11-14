@@ -26,9 +26,16 @@ export const ChildLoginScreen: React.FC<ChildLoginScreenProps> = ({
       <div className="w-full max-w-3xl glass-card rounded-[36px] overflow-hidden shadow-[0_24px_60px_-15px_rgba(95,105,195,0.28)]">
         {/* Pastel Header */}
         <div className="hero-pastel-gradient px-6 py-7 text-white text-center relative">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/25 backdrop-blur-md text-xs font-bold mb-3">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>KidQuest Family</span>
+          <div className="flex flex-col items-center mb-3">
+            <img
+              src="/assets/aistudio/__________________________3f410f16.png"
+              alt="KidQuest Family Logo"
+              className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl shadow-lg shadow-indigo-900/20 ring-2 ring-white/50 object-cover mb-3"
+            />
+            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/25 backdrop-blur-md text-xs font-bold">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>KidQuest Family</span>
+            </div>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight drop-shadow-sm">
             {parentModePrompt
