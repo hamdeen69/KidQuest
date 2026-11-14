@@ -1,0 +1,145 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-sans: "Anuphan", system-ui, -apple-system, sans-serif;
+    --font-mono: "Anuphan", system-ui, -apple-system, sans-serif;
+  }
+
+  html,
+  body {
+    font-family: var(--font-sans);
+    background-color: #f4f6ff;
+    color: #181c32;
+    overscroll-behavior-y: contain;
+  }
+}
+
+.font-mono-num {
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Signature pastel sky-to-lavender mesh gradients matching UI reference */
+.hero-pastel-gradient {
+  background: radial-gradient(120% 100% at 15% 0%, #6dd3ff 0%, #86b9ff 38%, #be9eff 72%, #e6b4ff 100%);
+}
+
+.page-pastel-backdrop {
+  background: radial-gradient(90% 70% at 15% 10%, rgba(196, 181, 253, 0.35) 0%, transparent 60%),
+              radial-gradient(80% 70% at 90% 85%, rgba(125, 211, 252, 0.32) 0%, transparent 60%),
+              linear-gradient(160deg, #eff2ff 0%, #f6f4ff 50%, #eef7ff 100%);
+}
+
+.aim-card-pink {
+  background: linear-gradient(145deg, #f3c4fb 0%, #d8a7ff 52%, #b59bff 100%);
+}
+
+.aim-card-violet {
+  background: linear-gradient(145deg, #c6b8ff 0%, #a58eff 55%, #8474ff 100%);
+}
+
+.aim-card-sky {
+  background: linear-gradient(145deg, #b8e6ff 0%, #8bc6ff 55%, #8c9eff 100%);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 10px 30px -8px rgba(108, 122, 198, 0.14);
+}
+
+/* Official Google Sign-In button styling */
+.gsi-material-button {
+  -moz-user-select: none;
+  -webkit-user-select: none;
+  -ms-user-select: none;
+  -webkit-appearance: none;
+  background-color: #ffffff;
+  background-image: none;
+  border: 1px solid #dadce0;
+  border-radius: 9999px;
+  box-sizing: border-box;
+  color: #1f1f1f;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  height: 44px;
+  letter-spacing: 0.15px;
+  outline: none;
+  overflow: hidden;
+  padding: 0 18px;
+  position: relative;
+  text-align: center;
+  transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s;
+  vertical-align: middle;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gsi-material-button:hover {
+  box-shadow: 0 2px 8px rgba(60, 64, 67, 0.16);
+  background-color: #f8f9fa;
+}
+
+.gsi-material-button-content-wrapper {
+  align-items: center;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  height: 100%;
+  justify-content: center;
+  position: relative;
+  width: 100%;
+  gap: 10px;
+}
+
+.gsi-material-button-icon {
+  height: 18px;
+  width: 18px;
+  min-width: 18px;
+}
+
+/* Hide scrollbars cleanly for horizontal mobile carousels */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Safe area padding for iOS bottom navigation */
+.pb-safe {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}
+
+/* Custom SweetAlert2 styling to match our pastel family UI */
+.swal2-popup.kidquest-swal {
+  border-radius: 28px !important;
+  padding: 1.75rem !important;
+  font-family: var(--font-sans) !important;
+  box-shadow: 0 24px 60px -12px rgba(91, 72, 168, 0.25) !important;
+}
+
+.swal2-confirm.kidquest-swal-confirm {
+  border-radius: 14px !important;
+  padding: 0.7rem 1.5rem !important;
+  font-weight: 600 !important;
+  background: linear-gradient(135deg, #6b9cff 0%, #8b5cf6 100%) !important;
+  box-shadow: 0 8px 20px -4px rgba(139, 92, 246, 0.4) !important;
+}
+
+.swal2-cancel.kidquest-swal-cancel {
+  border-radius: 14px !important;
+  padding: 0.7rem 1.5rem !important;
+  font-weight: 600 !important;
+}

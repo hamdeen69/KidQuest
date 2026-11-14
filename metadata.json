@@ -1,0 +1,6 @@
+{
+  "name": "KidQuest Family",
+  "description": "แอปพลิเคชันเกมติดตามงานบ้านสำหรับเด็กอายุ 3-12 ปี ส่งเสริมวินัย แรงจูงใจเชิงบวก ปรับแต่งอวตาร ควบคุมเวลาหน้าจอ เชื่อมต่อ Google Sheets และแจ้งเตือนผ่าน Telegram",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
