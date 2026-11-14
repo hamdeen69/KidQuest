@@ -12,6 +12,8 @@ import {
 
 export const DEFAULT_SPREADSHEET_ID = '10tp-V420fQeYGxfnYoNCRURqF9OPxRkG2tQsm2vht7w';
 export const DEFAULT_DRIVE_FOLDER_ID = '11ntO9X4OFZXRSa33QjGQfSBf2eS0gzTF';
+export const DEFAULT_APPS_SCRIPT_URL =
+  'https://script.google.com/macros/s/AKfycby8OdFmdAts1OxFgJi7fktbcbB5_6VHOPXzPBcDSKmpPzlbD2C07IN7dv8l6VQyvrA/exec';
 
 export const AGE_GROUP_INFO: Record<
   AgeGroup,

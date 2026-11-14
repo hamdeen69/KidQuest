@@ -1,3 +1,4 @@
+import { DEFAULT_APPS_SCRIPT_URL } from '../data/initialData';
 import { callAppsScriptDirect } from './googleSheets';
 
 export interface DriveUploadResult {
@@ -7,8 +8,12 @@ export interface DriveUploadResult {
 }
 
 function getFallbackAppsScriptUrl(): string {
-  const url = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL;
-  return typeof url === 'string' ? url.trim().replace(/^["']|["']$/g, '') : '';
+  const envUrl = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL;
+  const cleanedEnv =
+    typeof envUrl === 'string'
+      ? envUrl.trim().replace(/^["']|["']$/g, '')
+      : '';
+  return cleanedEnv || DEFAULT_APPS_SCRIPT_URL;
 }
 
 function isJsonResponse(res: Response): boolean {
@@ -46,7 +51,7 @@ export async function verifyDriveFolder(
         return { id: data.id, name: data.name || 'Google Drive Folder' };
       }
 
-      if (!data.unconfigured || !fallbackUrl) {
+      if (!(data.unconfigured || res.status === 404) || !fallbackUrl) {
         throw new Error(
           data.error ||
             `ไม่สามารถเข้าถึงโฟลเดอร์ Google Drive (${res.status}) กรุณาตรวจสอบ Folder ID`
@@ -117,7 +122,7 @@ export async function uploadChorePhotoToDrive(params: {
         };
       }
 
-      if (!data.unconfigured || !fallbackUrl) {
+      if (!(data.unconfigured || res.status === 404) || !fallbackUrl) {
         throw new Error(
           data.error || `อัปโหลดรูปไปยัง Google Drive ไม่สำเร็จ (${res.status})`
         );

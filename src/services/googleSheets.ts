@@ -1,4 +1,9 @@
 import {
+  DEFAULT_APPS_SCRIPT_URL,
+  DEFAULT_DRIVE_FOLDER_ID,
+  DEFAULT_SPREADSHEET_ID,
+} from '../data/initialData';
+import {
   AgeGroup,
   AvatarAccessory,
   AvatarCharacter,
@@ -35,8 +40,12 @@ export const REQUIRED_TABS = [
 ];
 
 function getFallbackAppsScriptUrl(): string {
-  const url = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL;
-  return typeof url === 'string' ? url.trim().replace(/^["']|["']$/g, '') : '';
+  const envUrl = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL;
+  const cleanedEnv =
+    typeof envUrl === 'string'
+      ? envUrl.trim().replace(/^["']|["']$/g, '')
+      : '';
+  return cleanedEnv || DEFAULT_APPS_SCRIPT_URL;
 }
 
 function isJsonResponse(res: Response): boolean {
@@ -95,8 +104,8 @@ export async function fetchGoogleServerStatus(): Promise<GoogleServerStatus> {
       configured: true,
       mode: 'apps_script',
       serviceAccountEmail: null,
-      defaultSpreadsheetId: '10tp-V420fQeYGxfnYoNCRURqF9OPxRkG2tQsm2vht7w',
-      defaultDriveFolderId: '11ntO9X4OFZXRSa33QjGQfSBf2eS0gzTF',
+      defaultSpreadsheetId: DEFAULT_SPREADSHEET_ID,
+      defaultDriveFolderId: DEFAULT_DRIVE_FOLDER_ID,
     };
   }
 
@@ -104,8 +113,8 @@ export async function fetchGoogleServerStatus(): Promise<GoogleServerStatus> {
     configured: false,
     mode: 'unconfigured',
     serviceAccountEmail: null,
-    defaultSpreadsheetId: '10tp-V420fQeYGxfnYoNCRURqF9OPxRkG2tQsm2vht7w',
-    defaultDriveFolderId: '11ntO9X4OFZXRSa33QjGQfSBf2eS0gzTF',
+    defaultSpreadsheetId: DEFAULT_SPREADSHEET_ID,
+    defaultDriveFolderId: DEFAULT_DRIVE_FOLDER_ID,
   };
 }
 
@@ -315,7 +324,7 @@ export async function syncAllToGoogleSheets(
         };
       }
 
-      if (!data.unconfigured || !fallbackUrl) {
+      if ((!(data.unconfigured || res.status === 404)) || !fallbackUrl) {
         throw new Error(data.error || 'ไม่สามารถบันทึกข้อมูลลง Google Sheets ได้');
       }
     } else if (!fallbackUrl) {
@@ -382,7 +391,7 @@ export async function loadAllFromGoogleSheets(spreadsheetId: string): Promise<{
       const json = (await res.json()) as SheetsLoadPayload;
       if (res.ok && json.ok) {
         data = json;
-      } else if (!json.unconfigured || !fallbackUrl) {
+      } else if ((!(json.unconfigured || res.status === 404)) || !fallbackUrl) {
         throw new Error(json.error || 'ไม่สามารถอ่านข้อมูลจาก Google Sheets ได้');
       }
     } else if (!fallbackUrl) {
